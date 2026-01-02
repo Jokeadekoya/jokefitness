@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-# -------------------- Page Settings --------------------
+# -------------------- PAGE CONFIGURATION --------------------
 st.set_page_config(
     page_title="Joke's Fitness 💪",
     page_icon="🏋️",
     layout="centered"
 )
 
-# -------------------- Load Data --------------------
+# -------------------- LOAD DATA --------------------
 try:
     df = pd.read_csv("data.csv", parse_dates=["date"])
 except:
@@ -21,12 +21,11 @@ except:
 today = pd.to_datetime(date.today())
 
 # -------------------- HEADER --------------------
-st.title("🏋️ Fitness Tracker")
-st.subheader(f"Date: {today.date()}")
+st.title("🏋️ Joke's Fitness Tracker")
+st.subheader("Track workouts, nutrition, sleep, stress & mood easily")
 
 # -------------------- DAILY INPUT --------------------
 st.header("Daily Input")
-
 workout_done = st.checkbox("Workout done today")
 workout_type = st.selectbox("Workout type", ["Lower body", "Upper body", "Abdominals"])
 workout_duration = st.number_input("Duration (minutes)", min_value=0, step=5)
@@ -42,7 +41,7 @@ stress = st.slider("Stress level (1 low - 5 high)", 1, 5, value=3)
 mood = st.slider("Mood / Energy level (1 low - 5 high)", 1, 5, value=4)
 
 if st.button("Save Today"):
-    df = df[df["date"] != today]
+    df = df[df["date"] != today]  # replace today's data if exists
     new_row = pd.DataFrame([[
         today, workout_done, workout_type, workout_duration, intensity,
         protein, food_quality, food_portion, water, sleep, stress, mood
@@ -53,7 +52,6 @@ if st.button("Save Today"):
 
 # -------------------- WEEKLY SCORE --------------------
 st.header("Weekly Score")
-
 if not df.empty:
     df["week"] = df["date"].dt.isocalendar().week
     current_week = today.isocalendar().week
@@ -68,18 +66,18 @@ if not df.empty:
     avg_stress = 6 - week_df["stress"].mean()  # inverted stress
     avg_mood = week_df["mood"].mean() if not week_df.empty else 0
 
-    # Weekly goals & max points
+    # Targets and max points
     targets = {
-        "Workout": (5, 30),
+        "Workout": (4, 30),
         "Protein Intake": (100, 15),
-        "Food Quality": (5, 20),
+        "Food Quality": (4, 20),
         "Food Portion": (None, 10),
-        "Water Intake": (3, 10),
+        "Water Intake": (2.0, 10),
         "Sleep": (7, 7.5),
         "Mood + Stress": (None, 7.5)
     }
 
-    # -------------------- Scoring --------------------
+    # Scoring
     score_workout = min(workouts_done / targets["Workout"][0], 1) * targets["Workout"][1]
     score_protein = min(avg_protein / targets["Protein Intake"][0], 1) * targets["Protein Intake"][1]
     score_food_quality = min(avg_food_quality / targets["Food Quality"][0], 1) * targets["Food Quality"][1]
@@ -111,7 +109,7 @@ if not df.empty:
 
     st.markdown(f"<h2 style='color:{color}'>{rating} - {weekly_score}/100</h2>", unsafe_allow_html=True)
 
-    # -------------------- Scoring Breakdown with Progress Bars --------------------
+    # -------------------- Weekly Score Breakdown + Progress Bars --------------------
     st.header("🧮 Weekly Score Breakdown")
     breakdown = {
         "Workout": (score_workout, targets["Workout"][1]),
@@ -128,21 +126,39 @@ if not df.empty:
         st.write(f"**{factor}: {earned:.1f} / {max_points}**")
         st.progress(percent)
 
-    # -------------------- Weekly Trends Chart (% of Target) --------------------
-    st.subheader("Weekly Trends (% of Target)")
+# -------------------- WEEKLY TREND (Line Graph OF TOTAL SCORES) --------------------
+st.subheader("Weekly Average Score Trend")
+if not df.empty:
+    df["week_year"] = df["date"].dt.strftime("%Y-W%U")
+    weekly_scores = []
 
-    if not week_df.empty:
-        trend_df = pd.DataFrame()
-        trend_df["Workout (%)"] = week_df["workout_done"].cumsum() / targets["Workout"][0] * 100
-        trend_df["Protein (%)"] = week_df["protein"].cumsum() / (targets["Protein Intake"][0]*len(week_df)) * 100
-        trend_df["Food Quality (%)"] = week_df["food_quality"].cumsum() / (targets["Food Quality"][0]*len(week_df)) * 100
-        trend_df["Water (%)"] = week_df["water"].cumsum() / (targets["Water Intake"][0]*len(week_df)) * 100
-        trend_df["Sleep (%)"] = week_df["sleep"].cumsum() / (targets["Sleep"][0]*len(week_df)) * 100
-        trend_df["Mood+Stress (%)"] = ((week_df["mood"] + (6-week_df["stress"])) / 2).cumsum() / (5*len(week_df)) * 100
-        trend_df.index = week_df["date"]
-        st.line_chart(trend_df)
+    for week, week_data in df.groupby("week_year"):
+        # compute weekly total score
+        workouts_done = week_data["workout_done"].sum()
+        avg_protein = week_data["protein"].mean()
+        avg_food_quality = week_data["food_quality"].mean()
+        avg_water = week_data["water"].mean()
+        avg_sleep = week_data["sleep"].mean()
+        avg_stress = 6 - week_data["stress"].mean()
+        avg_mood = week_data["mood"].mean()
 
-# -------------------- Expandable Detailed Dashboard --------------------
+        score_workout = min(workouts_done / targets["Workout"][0], 1) * targets["Workout"][1]
+        score_protein = min(avg_protein / targets["Protein Intake"][0], 1) * targets["Protein Intake"][1]
+        score_food_quality = min(avg_food_quality / targets["Food Quality"][0], 1) * targets["Food Quality"][1]
+        score_food_portion = week_data["food_portion"].map(portion_score_map).mean()
+        score_food_portion = min(score_food_portion, targets["Food Portion"][1])
+        score_water = min(avg_water / targets["Water Intake"][0], 1) * targets["Water Intake"][1]
+        score_sleep = min(avg_sleep / targets["Sleep"][0], 1) * targets["Sleep"][1]
+        score_lifestyle = ((avg_mood + avg_stress)/2)/5 * targets["Mood + Stress"][1]
+
+        total_score = round(score_workout + score_protein + score_food_quality +
+                            score_food_portion + score_water + score_sleep + score_lifestyle, 1)
+        weekly_scores.append((week, total_score))
+
+    weekly_df = pd.DataFrame(weekly_scores, columns=["Week", "Total Score"]).sort_values("Week")
+    st.line_chart(weekly_df.set_index("Week"))
+
+# -------------------- EXPANDABLE DETAILED DASHBOARD --------------------
 with st.expander("Show Weekly Dashboard & Detailed Data"):
     if not df.empty:
         st.subheader("Metrics")
