@@ -30,7 +30,7 @@ intensity = st.radio("Intensity", ["Easy", "Medium", "Hard"])
 protein = st.number_input("Protein (g)", min_value=0, step=5, value=100)
 food_quality = st.slider("Food quality (1=poor, 5=excellent)", 1, 5, value=4)
 food_portion = st.selectbox("Food portion", ["Under-eat", "Normal", "Over-eat"], index=1)
-water = st.number_input("Water (liters)", min_value=0.0, step=0.1, value=2.0)
+water = st.number_input("Water intake (liters)", min_value=0.0, step=0.1, value=2.0)
 
 sleep = st.number_input("Sleep (hrs)", min_value=0, step=1, value=7)
 stress = st.slider("Stress level (1 low - 5 high)", 1, 5, value=3)
@@ -54,15 +54,16 @@ if not df.empty:
     current_week = today.isocalendar().week
     week_df = df[df["week"] == current_week]
 
+    # Weekly metrics
     workouts_done = week_df["workout_done"].sum()
     avg_protein = week_df["protein"].mean() if not week_df.empty else 0
     avg_food_quality = week_df["food_quality"].mean() if not week_df.empty else 0
     avg_water = week_df["water"].mean() if not week_df.empty else 0
     avg_sleep = week_df["sleep"].mean() if not week_df.empty else 0
-    avg_stress = 6 - week_df["stress"].mean()
+    avg_stress = 6 - week_df["stress"].mean()  # inverted stress
     avg_mood = week_df["mood"].mean() if not week_df.empty else 0
 
-    # Pre-filled goals
+    # Pre-filled weekly goals
     target_workouts = 4
     target_protein = 100
     target_food_quality = 4
@@ -70,7 +71,7 @@ if not df.empty:
     target_sleep = 7
     target_mood = 4
 
-    # Scoring
+    # -------------------- Scoring --------------------
     score_workout = min(workouts_done / target_workouts, 1) * 30
     score_protein = min(avg_protein / target_protein, 1) * 15
     score_food_quality = min(avg_food_quality / target_food_quality, 1) * 20
@@ -84,6 +85,7 @@ if not df.empty:
     weekly_score = round(score_workout + score_protein + score_food_quality +
                          score_food_portion + score_water + score_sleep + score_lifestyle)
 
+    # Color-coded rating
     if weekly_score >= 85:
         rating = "Excellent 💪"
         color = "green"
@@ -98,6 +100,20 @@ if not df.empty:
         color = "red"
 
     st.markdown(f"<h2 style='color:{color}'>{rating} - {weekly_score}/100</h2>", unsafe_allow_html=True)
+
+    # -------------------- Scoring Breakdown --------------------
+    st.header("🧮 Weekly Score Breakdown")
+    breakdown = {
+        "Workout": round(score_workout, 1),
+        "Protein Intake": round(score_protein, 1),
+        "Food Quality": round(score_food_quality, 1),
+        "Food Portion": round(score_food_portion, 1),
+        "Water Intake": round(score_water, 1),
+        "Sleep": round(score_sleep, 1),
+        "Mood + Stress": round(score_lifestyle, 1)
+    }
+    breakdown_df = pd.DataFrame(list(breakdown.items()), columns=["Factor", "Points"])
+    st.table(breakdown_df)
 
 # -------------------- Expandable Detailed Dashboard --------------------
 with st.expander("Show Weekly Dashboard & Trends"):
@@ -125,4 +141,4 @@ with st.expander("Show Weekly Dashboard & Trends"):
             "sleep":"{:.1f}",
             "mood":"{:.0f}",
             "stress":"{:.0f}"
-        }).background_gradient(subset=["workout_duration","protein","food_quality","water","sleep"], cmap="RdYlGn"))
+        }))
