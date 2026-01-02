@@ -2,66 +2,156 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-st.set_page_config(page_title="Fitness Tracker", layout="centered")
+# -------------------- Page Settings --------------------
+st.set_page_config(
+    page_title="Joke's Fitness 💪",
+    page_icon="🏋️",
+    layout="centered"
+)
 
-# Load data
+# -------------------- Load Data --------------------
 try:
     df = pd.read_csv("data.csv", parse_dates=["date"])
 except:
-    df = pd.DataFrame(columns=["date", "workout_done", "calories"])
+    df = pd.DataFrame(columns=[
+        "date","workout_done","workout_type","workout_duration","intensity",
+        "protein","food_quality","food_portion","water","sleep","stress","mood"
+    ])
 
 today = pd.to_datetime(date.today())
 
-st.title("🏋️ Personal Fitness Tracker")
+st.title("🏋️ Fitness Tracker")
+st.subheader(f"Date: {today.date()}")
 
-# ---------------- DAILY INPUT ----------------
-st.header("Today")
+# -------------------- DAILY INPUT --------------------
+st.header("Daily Input")
 
-workout_done = st.checkbox("Workout completed today")
-calories = st.number_input("Calories eaten today", min_value=0, step=50)
+workout_done = st.checkbox("Workout done today")
+workout_type = st.selectbox("Workout type", ["Lower body", "Upper body", "Abdominals"])
+workout_duration = st.number_input("Duration (minutes)", min_value=0, step=5)
+intensity = st.radio("Intensity", ["Easy", "Medium", "Hard"])
 
-if st.button("Save today"):
+protein = st.number_input("Protein (g)", min_value=0, step=5, value=100)
+food_quality = st.slider("Food quality (1=poor, 5=excellent)", 1, 5, value=4)
+food_portion = st.selectbox("Food portion", ["Under-eat", "Normal", "Over-eat"], index=1)
+water = st.number_input("Water intake (liters)", min_value=0.0, step=0.1, value=2.0)
+
+sleep = st.number_input("Sleep (hrs)", min_value=0, step=1, value=7)
+stress = st.slider("Stress level (1 low - 5 high)", 1, 5, value=3)
+mood = st.slider("Mood / Energy level (1 low - 5 high)", 1, 5, value=4)
+
+if st.button("Save Today"):
     df = df[df["date"] != today]
-    new_row = pd.DataFrame(
-        [[today, workout_done, calories]],
-        columns=["date", "workout_done", "calories"]
-    )
+    new_row = pd.DataFrame([[
+        today, workout_done, workout_type, workout_duration, intensity,
+        protein, food_quality, food_portion, water, sleep, stress, mood
+    ]], columns=df.columns)
     df = pd.concat([df, new_row])
     df.to_csv("data.csv", index=False)
-    st.success("Saved ✔")
+    st.success("✅ Saved!")
 
-# ---------------- WEEKLY SUMMARY ----------------
-st.header("This Week")
+# -------------------- WEEKLY SCORE --------------------
+st.header("Weekly Score")
 
-df["week"] = df["date"].dt.isocalendar().week
-current_week = today.isocalendar().week
+if not df.empty:
+    df["week"] = df["date"].dt.isocalendar().week
+    current_week = today.isocalendar().week
+    week_df = df[df["week"] == current_week]
 
-week_df = df[df["week"] == current_week]
+    # Weekly metrics
+    workouts_done = week_df["workout_done"].sum()
+    avg_protein = week_df["protein"].mean() if not week_df.empty else 0
+    avg_food_quality = week_df["food_quality"].mean() if not week_df.empty else 0
+    avg_water = week_df["water"].mean() if not week_df.empty else 0
+    avg_sleep = week_df["sleep"].mean() if not week_df.empty else 0
+    avg_stress = 6 - week_df["stress"].mean()  # inverted stress
+    avg_mood = week_df["mood"].mean() if not week_df.empty else 0
 
-workouts_done = week_df["workout_done"].sum()
-total_calories = week_df["calories"].sum()
+    # -------------------- Weekly Goals / Max Points --------------------
+    targets = {
+        "Workout": (5, 30),
+        "Protein Intake": (100, 15),
+        "Food Quality": (5, 20),
+        "Food Portion": (None, 10),
+        "Water Intake": (3, 10),
+        "Sleep": (7, 7.5),
+        "Mood + Stress": (None, 7.5)
+    }
 
-# Weekly goals (editable)
-target_workouts = st.number_input("Weekly workout goal", value=4)
-max_calories = st.number_input("Weekly calorie limit", value=12000)
+    # -------------------- Scoring --------------------
+    score_workout = min(workouts_done / targets["Workout"][0], 1) * targets["Workout"][1]
+    score_protein = min(avg_protein / targets["Protein Intake"][0], 1) * targets["Protein Intake"][1]
+    score_food_quality = min(avg_food_quality / targets["Food Quality"][0], 1) * targets["Food Quality"][1]
 
-# Score calculation
-workout_score = min(workouts_done / target_workouts, 1) * 40 if target_workouts else 0
-calorie_score = min(max_calories / total_calories, 1) * 40 if total_calories else 40
-score = round(workout_score + calorie_score + 20)
+    portion_score_map = {"Under-eat": 5, "Normal": 10, "Over-eat": 5}
+    score_food_portion = week_df["food_portion"].map(portion_score_map).mean() if not week_df.empty else 0
+    score_food_portion = min(score_food_portion, targets["Food Portion"][1])
 
-# Rating
-if score >= 85:
-    rating = "Excellent 💪"
-elif score >= 70:
-    rating = "Good 👍"
-elif score >= 50:
-    rating = "Fair ⚠️"
-else:
-    rating = "Poor 🚨"
+    score_water = min(avg_water / targets["Water Intake"][0], 1) * targets["Water Intake"][1]
+    score_sleep = min(avg_sleep / targets["Sleep"][0], 1) * targets["Sleep"][1]
+    score_lifestyle = ((avg_mood + avg_stress)/2)/5 * targets["Mood + Stress"][1]
 
-# Display
-st.metric("Workouts Done", workouts_done)
-st.metric("Calories This Week", int(total_calories))
-st.metric("Weekly Score", score)
-st.success(f"Rating: {rating}")
+    weekly_score = round(score_workout + score_protein + score_food_quality +
+                         score_food_portion + score_water + score_sleep + score_lifestyle, 1)
+
+    # Color-coded rating
+    if weekly_score >= 85:
+        rating = "Excellent 💪"
+        color = "green"
+    elif weekly_score >= 70:
+        rating = "Good 👍"
+        color = "yellow"
+    elif weekly_score >= 50:
+        rating = "Fair ⚠️"
+        color = "orange"
+    else:
+        rating = "Poor 🚨"
+        color = "red"
+
+    st.markdown(f"<h2 style='color:{color}'>{rating} - {weekly_score}/100</h2>", unsafe_allow_html=True)
+
+    # -------------------- Scoring Breakdown with Progress Bars --------------------
+    st.header("🧮 Weekly Score Breakdown")
+
+    breakdown = {
+        "Workout": (score_workout, targets["Workout"][1]),
+        "Protein Intake": (score_protein, targets["Protein Intake"][1]),
+        "Food Quality": (score_food_quality, targets["Food Quality"][1]),
+        "Food Portion": (score_food_portion, targets["Food Portion"][1]),
+        "Water Intake": (score_water, targets["Water Intake"][1]),
+        "Sleep": (score_sleep, targets["Sleep"][1]),
+        "Mood + Stress": (score_lifestyle, targets["Mood + Stress"][1])
+    }
+
+    for factor, (earned, max_points) in breakdown.items():
+        percent = earned / max_points if max_points else 0
+        st.write(f"**{factor}: {earned:.1f} / {max_points}**")
+        st.progress(percent)
+
+# -------------------- Expandable Detailed Dashboard --------------------
+with st.expander("Show Weekly Dashboard & Trends"):
+    if not df.empty:
+        st.subheader("Metrics")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Workouts Done", f"{workouts_done}/{targets['Workout'][0]}")
+        col2.metric("Avg Protein (g)", round(avg_protein,1))
+        col3.metric("Avg Food Quality", round(avg_food_quality,1))
+
+        col4, col5, col6 = st.columns(3)
+        col4.metric("Avg Water (L)", round(avg_water,1))
+        col5.metric("Avg Sleep (hrs)", round(avg_sleep,1))
+        col6.metric("Avg Mood", round(avg_mood,1))
+
+        st.subheader("Weekly Trends")
+        trend_data = week_df[["date","workout_duration","protein","food_quality","water","sleep"]].set_index("date")
+        st.line_chart(trend_data)
+
+        st.subheader("Detailed Weekly Data")
+        st.dataframe(week_df.style.format({
+            "protein":"{:.1f}",
+            "food_quality":"{:.1f}",
+            "water":"{:.1f}",
+            "sleep":"{:.1f}",
+            "mood":"{:.1f}",
+            "stress":"{:.1f}"
+        }))
