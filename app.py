@@ -3,7 +3,11 @@ import pandas as pd
 from datetime import date
 
 # -------------------- Page Settings --------------------
-st.set_page_config(page_title="Fitness Tracker", layout="centered")
+st.set_page_config(
+    page_title="Joke's Fitness 💪",
+    page_icon="🏋️",
+    layout="centered"
+)
 
 # -------------------- Load Data --------------------
 try:
@@ -63,27 +67,32 @@ if not df.empty:
     avg_stress = 6 - week_df["stress"].mean()  # inverted stress
     avg_mood = week_df["mood"].mean() if not week_df.empty else 0
 
-    # Pre-filled weekly goals
-    target_workouts = 4
-    target_protein = 100
-    target_food_quality = 4
-    target_water = 2.0
-    target_sleep = 7
-    target_mood = 4
+    # -------------------- Weekly Goals / Max Points --------------------
+    targets = {
+        "Workout": (4, 30),
+        "Protein Intake": (100, 15),
+        "Food Quality": (4, 20),
+        "Food Portion": (None, 10),
+        "Water Intake": (2.0, 10),
+        "Sleep": (7, 7.5),
+        "Mood + Stress": (None, 7.5)
+    }
 
     # -------------------- Scoring --------------------
-    score_workout = min(workouts_done / target_workouts, 1) * 30
-    score_protein = min(avg_protein / target_protein, 1) * 15
-    score_food_quality = min(avg_food_quality / target_food_quality, 1) * 20
+    score_workout = min(workouts_done / targets["Workout"][0], 1) * targets["Workout"][1]
+    score_protein = min(avg_protein / targets["Protein Intake"][0], 1) * targets["Protein Intake"][1]
+    score_food_quality = min(avg_food_quality / targets["Food Quality"][0], 1) * targets["Food Quality"][1]
+
     portion_score_map = {"Under-eat": 5, "Normal": 10, "Over-eat": 5}
     score_food_portion = week_df["food_portion"].map(portion_score_map).mean() if not week_df.empty else 0
-    score_food_portion = min(score_food_portion, 10)
-    score_water = min(avg_water / target_water, 1) * 10
-    score_sleep = min(avg_sleep / target_sleep, 1) * 7.5
-    score_lifestyle = ((avg_mood + avg_stress)/2)/5 * 7.5
+    score_food_portion = min(score_food_portion, targets["Food Portion"][1])
+
+    score_water = min(avg_water / targets["Water Intake"][0], 1) * targets["Water Intake"][1]
+    score_sleep = min(avg_sleep / targets["Sleep"][0], 1) * targets["Sleep"][1]
+    score_lifestyle = ((avg_mood + avg_stress)/2)/5 * targets["Mood + Stress"][1]
 
     weekly_score = round(score_workout + score_protein + score_food_quality +
-                         score_food_portion + score_water + score_sleep + score_lifestyle)
+                         score_food_portion + score_water + score_sleep + score_lifestyle, 1)
 
     # Color-coded rating
     if weekly_score >= 85:
@@ -101,27 +110,31 @@ if not df.empty:
 
     st.markdown(f"<h2 style='color:{color}'>{rating} - {weekly_score}/100</h2>", unsafe_allow_html=True)
 
-    # -------------------- Scoring Breakdown --------------------
+    # -------------------- Scoring Breakdown with Progress Bars --------------------
     st.header("🧮 Weekly Score Breakdown")
+
     breakdown = {
-        "Workout": round(score_workout, 1),
-        "Protein Intake": round(score_protein, 1),
-        "Food Quality": round(score_food_quality, 1),
-        "Food Portion": round(score_food_portion, 1),
-        "Water Intake": round(score_water, 1),
-        "Sleep": round(score_sleep, 1),
-        "Mood + Stress": round(score_lifestyle, 1)
+        "Workout": (score_workout, targets["Workout"][1]),
+        "Protein Intake": (score_protein, targets["Protein Intake"][1]),
+        "Food Quality": (score_food_quality, targets["Food Quality"][1]),
+        "Food Portion": (score_food_portion, targets["Food Portion"][1]),
+        "Water Intake": (score_water, targets["Water Intake"][1]),
+        "Sleep": (score_sleep, targets["Sleep"][1]),
+        "Mood + Stress": (score_lifestyle, targets["Mood + Stress"][1])
     }
-    breakdown_df = pd.DataFrame(list(breakdown.items()), columns=["Factor", "Points"])
-    st.table(breakdown_df)
+
+    for factor, (earned, max_points) in breakdown.items():
+        percent = earned / max_points if max_points else 0
+        st.write(f"**{factor}: {earned:.1f} / {max_points}**")
+        st.progress(percent)
 
 # -------------------- Expandable Detailed Dashboard --------------------
 with st.expander("Show Weekly Dashboard & Trends"):
     if not df.empty:
         st.subheader("Metrics")
         col1, col2, col3 = st.columns(3)
-        col1.metric("Workouts Done", f"{workouts_done}/{target_workouts}")
-        col2.metric("Avg Protein (g)", round(avg_protein))
+        col1.metric("Workouts Done", f"{workouts_done}/{targets['Workout'][0]}")
+        col2.metric("Avg Protein (g)", round(avg_protein,1))
         col3.metric("Avg Food Quality", round(avg_food_quality,1))
 
         col4, col5, col6 = st.columns(3)
@@ -135,10 +148,10 @@ with st.expander("Show Weekly Dashboard & Trends"):
 
         st.subheader("Detailed Weekly Data")
         st.dataframe(week_df.style.format({
-            "protein":"{:.0f}",
-            "food_quality":"{:.0f}",
+            "protein":"{:.1f}",
+            "food_quality":"{:.1f}",
             "water":"{:.1f}",
             "sleep":"{:.1f}",
-            "mood":"{:.0f}",
-            "stress":"{:.0f}"
+            "mood":"{:.1f}",
+            "stress":"{:.1f}"
         }))
