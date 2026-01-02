@@ -1,1 +1,1 @@
-date,workout_done,workout_type,workout_duration,intensity,calories,protein,carbs,fats,water,sleep,stress,mood
+date,workout_done,workout_type,workout_duration,intensity,protein,food_quality,food_portion,water,sleep,stress,mood
