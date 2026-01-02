@@ -20,6 +20,7 @@ except:
 
 today = pd.to_datetime(date.today())
 
+# -------------------- HEADER --------------------
 st.title("🏋️ Fitness Tracker")
 st.subheader(f"Date: {today.date()}")
 
@@ -67,13 +68,13 @@ if not df.empty:
     avg_stress = 6 - week_df["stress"].mean()  # inverted stress
     avg_mood = week_df["mood"].mean() if not week_df.empty else 0
 
-    # -------------------- Weekly Goals / Max Points --------------------
+    # Weekly goals & max points
     targets = {
-        "Workout": (4, 30),
+        "Workout": (5, 30),
         "Protein Intake": (100, 15),
-        "Food Quality": (4, 20),
+        "Food Quality": (5, 20),
         "Food Portion": (None, 10),
-        "Water Intake": (2.0, 10),
+        "Water Intake": (3, 10),
         "Sleep": (7, 7.5),
         "Mood + Stress": (None, 7.5)
     }
@@ -112,7 +113,6 @@ if not df.empty:
 
     # -------------------- Scoring Breakdown with Progress Bars --------------------
     st.header("🧮 Weekly Score Breakdown")
-
     breakdown = {
         "Workout": (score_workout, targets["Workout"][1]),
         "Protein Intake": (score_protein, targets["Protein Intake"][1]),
@@ -128,8 +128,22 @@ if not df.empty:
         st.write(f"**{factor}: {earned:.1f} / {max_points}**")
         st.progress(percent)
 
+    # -------------------- Weekly Trends Chart (% of Target) --------------------
+    st.subheader("Weekly Trends (% of Target)")
+
+    if not week_df.empty:
+        trend_df = pd.DataFrame()
+        trend_df["Workout (%)"] = week_df["workout_done"].cumsum() / targets["Workout"][0] * 100
+        trend_df["Protein (%)"] = week_df["protein"].cumsum() / (targets["Protein Intake"][0]*len(week_df)) * 100
+        trend_df["Food Quality (%)"] = week_df["food_quality"].cumsum() / (targets["Food Quality"][0]*len(week_df)) * 100
+        trend_df["Water (%)"] = week_df["water"].cumsum() / (targets["Water Intake"][0]*len(week_df)) * 100
+        trend_df["Sleep (%)"] = week_df["sleep"].cumsum() / (targets["Sleep"][0]*len(week_df)) * 100
+        trend_df["Mood+Stress (%)"] = ((week_df["mood"] + (6-week_df["stress"])) / 2).cumsum() / (5*len(week_df)) * 100
+        trend_df.index = week_df["date"]
+        st.line_chart(trend_df)
+
 # -------------------- Expandable Detailed Dashboard --------------------
-with st.expander("Show Weekly Dashboard & Trends"):
+with st.expander("Show Weekly Dashboard & Detailed Data"):
     if not df.empty:
         st.subheader("Metrics")
         col1, col2, col3 = st.columns(3)
@@ -141,10 +155,6 @@ with st.expander("Show Weekly Dashboard & Trends"):
         col4.metric("Avg Water (L)", round(avg_water,1))
         col5.metric("Avg Sleep (hrs)", round(avg_sleep,1))
         col6.metric("Avg Mood", round(avg_mood,1))
-
-        st.subheader("Weekly Trends")
-        trend_data = week_df[["date","workout_duration","protein","food_quality","water","sleep"]].set_index("date")
-        st.line_chart(trend_data)
 
         st.subheader("Detailed Weekly Data")
         st.dataframe(week_df.style.format({
